@@ -27,17 +27,22 @@ const QayArray = bigIntToArray(64, 4, Qa.y);
 const rewardSats = 10000;
 const contractExpireBlock = 761406;
 
-const n = 91;
+const p: bigint = 84102226189931597204228074020861136329889927593666544679790818418208050232689529735088785671967555126288131210906309673238385952888184646056701546267152983157209204178832636744126636676765506035710343020385405332519258369909033933883276849025592411318178524227006970911149528928068344969907921225222253552759n;
+const q: bigint = 69227124116797173792607322097623651900186824540546740345955227424547330221880094641332718074911771220677020023646982676844502920924653525076956524065499369561259749151984512521544089172137726149696268189532069007446227350457277994250148911361041938621241351126892097452001343025320798183836404152872960236563n;
+
+const n: bigint = p * q;
 
 describe("End2End", function () {
     this.timeout(1000 * 1000 * 10);
-
-    let w = [7, 13];
 
     let db: bigint = 90388020393783788847120091912026443124559466591761394939671630294477859800601n;
     let Qb: Point = Point.fromPrivateKey(db);
 
     let Qs: Point = Qb.multiply(da);
+    
+    let pArray = bigIntToArray(64, 16, p);
+    let qArray = bigIntToArray(64, 16, q);
+    let nArray = bigIntToArray(64, 32, n);
 
     let dbArray = bigIntToArray(64, 4, db);
     let QbxArray = bigIntToArray(64, 4, Qb.x);
@@ -46,7 +51,7 @@ describe("End2End", function () {
     let QsyArray = bigIntToArray(64, 4, Qs.y);
 
     let nonce = BigInt(1234); // TODO
-    let ew = poseidonEncrypt(w, formatSharedKey(QsxArray), nonce);
+    let ew = poseidonEncrypt(pArray.concat(qArray), formatSharedKey(QsxArray), nonce);
 
     let QaHex = Qa.toHex(false).slice(2);  // Slice away "04" at the beggining from uncompressed encoding.
     let QbHex = Qb.toHex(false).slice(2);
@@ -93,9 +98,11 @@ describe("End2End", function () {
 
         // Generate proof.
         witness = {
-            "w": w,
+            "p": pArray,
+            "q": qArray,
             "db": dbArray,
             "Qs": [QsxArray, QsyArray],
+            "n": nArray,
             "Qa": [QaxArray, QayArray],
             "Qb": [QbxArray, QbyArray],
             "nonce": nonce,
@@ -234,8 +241,8 @@ describe("End2End", function () {
                _ew.push(BigInt("0x" + _ewHex.slice(i*128, i*128 + 128))) 
             }
         
-            let _w= poseidonDecrypt(_ew, _k, _nonce, ewLen);
-            expect(_w).to.equal(w);
+            let _w = poseidonDecrypt(_ew, _k, _nonce, ewLen);
+            expect(_w).to.equal(pArray.concat(qArray));
         }
     );
 

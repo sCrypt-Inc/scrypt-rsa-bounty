@@ -1,5 +1,6 @@
 pragma circom 2.0.2;
 
+include "../node_modules/circomlib/circuits/comparators.circom";
 include "../node_modules/circomlib/circuits/sha256/sha256.circom";
 
 include "ecdsa/ecdsa.circom";
@@ -8,19 +9,24 @@ include "poseidon/poseidon.circom";
 include "util.circom";
 
 // Circuit of private information bounty for prime factors (p, q) of an RSA modulus n = p*q.
-template Main() {
+// -------
+// chunksModulus --> Number of 64-bit chunks to represent the RSA modulus. I.e. 32 for a 2048-bit modulus.
+// chunksFactor  --> Number of 64-bit chunks to represent factors p or q. I.e. 16 for a 2048-bit modulus. // TODO
+// lCyphertext   --> Length of encrypted secret (chunksFactor * 2 + 2). See poseidon encryption implementation regarding the +2
+template Main(chunksModulus, chunksFactor, lCyphertext) {
 
     // Private inputs:
-    signal input w[2];              // p, q such that p * q == n
-    signal input db[4];             // Seller (Bob) private key.
-    signal input Qs[2][4];          // Shared (symmetric) key. Used to encrypt w.
+    signal input p[chunksFactor];            // p, q such that p * q == n
+    signal input q[chunksFactor];
+    signal input db[4];                      // Seller (Bob) private key.
+    signal input Qs[2][4];                   // Shared (symmetric) key. Used to encrypt w.
     
     // "Public" inputs that are still passed as private to reduce verifier size on chain:
-    signal input n;                 // RSA modulus n = p*q;
-    signal input Qa[2][4];          // Buyer (Alice) public key.
-    signal input Qb[2][4];          // Seller (Bob) public key.
-    signal input nonce;             // Needed to encrypt/decrypt xy.
-    signal input ew[4];             // Encrypted solution to puzzle.
+    signal input n[chunksModulus];           // RSA modulus n = p*q;
+    signal input Qa[2][4];                   // Buyer (Alice) public key.
+    signal input Qb[2][4];                   // Seller (Bob) public key.
+    signal input nonce;                      // Needed to encrypt/decrypt xy.
+    signal input ew[lCyphertext];            // Encrypted solution to puzzle.
 
     // Public inputs:
     signal input Hpub[2];            // Hash of inputs that are supposed to be public.
@@ -31,8 +37,8 @@ template Main() {
     //// Assert that public inputs hash to Hpub. ///////////////////////////////////
     // We first turn each inputs into an array of bits and then concatinate 
     // them together for the hash preimage. We use SHA256.
-    component ewBitsByPart = Num2BitsMultipleReverse(4, 256);
-    for (var i = 0; i < 4; i++) {
+    component ewBitsByPart = Num2BitsMultipleReverse(lCyphertext, 256);
+    for (var i = 0; i < lCyphertext; i++) {
         ewBitsByPart.in[i] <== ew[i];
     }
     component QaBits = Point2Bits();
@@ -47,7 +53,7 @@ template Main() {
     component nonceBits = Num2Bits(256);
     nonceBits.in <== nonce;
 
-    component hashCheck = Sha256(512 * 2 + 256 + 4 * 256);
+    component hashCheck = Sha256(512 * 2 + 256 + lCyphertext * 256);
 
     for (var i = 0; i < 512; i++) {
         hashCheck.in[i] <== QaBits.out[i];
@@ -58,7 +64,7 @@ template Main() {
         hashCheck.in[i + 1024] <== nonceBits.out[255 - i];
     }
 
-    for (var i = 0; i < 4; i++) {
+    for (var i = 0; i < lCyphertext; i++) {
         for (var j = 0; j < 256; j++) {
             hashCheck.in[i * 256 + j + 1280] <== ewBitsByPart.out[i][j];
         }
@@ -74,7 +80,41 @@ template Main() {
     Hpub[1] === Hpub1.out;
 
     //// Assert w is a valid solution. //////////////////////////////////////////////
-    n === w[0] * w[1];
+    // Check none of p or q are equal to 1
+    component pe1 = BigIsEqual(chunksFactor);
+    for (var i = 0; i < chunksFactor; i++) {
+        pe1.in[0][i] <== p[i];
+    }
+    for (var i = 0; i < chunksFactor - 1; i++) {
+        pe1.in[1][i] <== 0;
+    }
+    pe1.in[1][chunksFactor - 1] <== 1;
+    component isz0 = IsZero();
+    isz0.in <== pe1.out;
+    isz0.out === 1;
+
+    component qe1 = BigIsEqual(chunksFactor);
+    for (var i = 0; i < chunksFactor; i++) {
+        qe1.in[0][i] <== q[i];
+    }
+    for (var i = 0; i < chunksFactor - 1; i++) {
+        qe1.in[1][i] <== 0;
+    }
+    qe1.in[1][chunksFactor - 1] <== 1;
+    component isz1 = IsZero();
+    isz1.in <== qe1.out;
+    isz1.out === 1;
+
+    // Check if n == p * q.
+    component pq = BigMult(64, chunksFactor);
+    for (var i = 0; i < chunksFactor; i++) {
+        pq.a[i] <== p[i];
+        pq.b[i] <== q[i];
+    }
+
+    for (var i = 0; i < chunksModulus; i++) {
+        n[i] === pq.out[i];
+    }
 
     //// Assert that (db * Qa) = Qs ////////////////////////////////////////////////
     // This will ensure that Bob actually derived Qs using Alices public key Qa.
@@ -120,14 +160,15 @@ template Main() {
     // We split the x-coordinate of Qs into 4 field elements and use that as the 
     // encryption key. The encryption also uses a nonce which is passed as a public input.
     // The nonce can just be a timestamp for example.
-    component p = PoseidonEncryptCheck(2);
+    component posEnc = PoseidonEncryptCheck(chunksFactor * 2);
 
-    for (var i = 0; i < 4; i++) {
-        p.ciphertext[i] <== ew[i];
+    for (var i = 0; i < lCyphertext; i++) {
+        posEnc.ciphertext[i] <== ew[i];
     }
 
-    for (var i = 0; i < 2; i++) {
-        p.message[i] <== w[i];
+    for (var i = 0; i < chunksFactor; i++) {
+        posEnc.message[i] <== p[i];
+        posEnc.message[chunksFactor + i] <== q[i];
     }
     
     component sharedKey = FromatSharedKey();
@@ -136,9 +177,9 @@ template Main() {
     sharedKey.pointX[2] <== Qs[0][2];
     sharedKey.pointX[3] <== Qs[0][3];
 
-    p.nonce <== nonce;
-    p.key[0] <== sharedKey.ks[0];
-    p.key[1] <== sharedKey.ks[1];
-    //p.out === 1;
+    posEnc.nonce <== nonce;
+    posEnc.key[0] <== sharedKey.ks[0];
+    posEnc.key[1] <== sharedKey.ks[1];
+    posEnc.out === 1;
     
 }
