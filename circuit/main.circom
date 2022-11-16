@@ -85,10 +85,10 @@ template Main(chunksModulus, chunksFactor, lCyphertext) {
     for (var i = 0; i < chunksFactor; i++) {
         pe1.in[0][i] <== p[i];
     }
-    for (var i = 0; i < chunksFactor - 1; i++) {
+    pe1.in[1][0] <== 1;
+    for (var i = 1; i < chunksFactor; i++) {
         pe1.in[1][i] <== 0;
     }
-    pe1.in[1][chunksFactor - 1] <== 1;
     component isz0 = IsZero();
     isz0.in <== pe1.out;
     isz0.out === 1;
@@ -97,10 +97,10 @@ template Main(chunksModulus, chunksFactor, lCyphertext) {
     for (var i = 0; i < chunksFactor; i++) {
         qe1.in[0][i] <== q[i];
     }
-    for (var i = 0; i < chunksFactor - 1; i++) {
+    qe1.in[1][0] <== 1;
+    for (var i = 1; i < chunksFactor; i++) {
         qe1.in[1][i] <== 0;
     }
-    qe1.in[1][chunksFactor - 1] <== 1;
     component isz1 = IsZero();
     isz1.in <== qe1.out;
     isz1.out === 1;

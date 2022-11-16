@@ -20,7 +20,7 @@ contract RSABounty {
 
     public function unlock(
                         ECPoint Qb,    // Bobs public key.
-                        int[4] ew,     // Solution (p, q), encrypted with shared key k.
+                        int[34] ew,     // Solution (p, q), encrypted with shared key k.
                         Sha256 Hpub,   // Hash of public inputs.
                         int nonce,     // Nonce for encryption with shared key. Can be timestamp.
                         Proof pi,      // Proof of solution for the whole circuit C.
@@ -34,7 +34,7 @@ contract RSABounty {
         pubInputBytes += point2PubKey(this.Qa)[1:];
         pubInputBytes += point2PubKey(Qb)[1:];
         pubInputBytes += toBEUnsigned(nonce, 32);
-        loop (4) : i {
+        loop (34) : i {
             pubInputBytes += toBEUnsigned(ew[i], 32);
         }
         require(sha256(pubInputBytes) == Hpub);   
