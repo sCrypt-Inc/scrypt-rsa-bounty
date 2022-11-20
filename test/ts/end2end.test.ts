@@ -64,7 +64,14 @@ describe("End2End", function () {
         let partStr = ew[i].toString(16);
         ewHex += "0".repeat(64 - partStr.length) + partStr;
     }
-    let pubInputsHex = QaHex + QbHex + nonceHex + ewHex;
+
+    let nHex = '';
+    for (var i = 0; i < nArray.length; i++) {
+        let partStr = nArray[i].toString(16);
+        nHex += "0".repeat(64 - partStr.length) + partStr;
+    }
+
+    let pubInputsHex = QaHex + QbHex + nonceHex + ewHex + nHex;
     let Hpub = sha256(pubInputsHex);
     let Hpub0 = BigInt('0x' + Hpub.substring(0, 32));
     let Hpub1 = BigInt('0x' + Hpub.substring(32, 64));

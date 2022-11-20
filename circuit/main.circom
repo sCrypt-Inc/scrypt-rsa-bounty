@@ -37,6 +37,11 @@ template Main(chunksModulus, chunksFactor, lCyphertext) {
     //// Assert that public inputs hash to Hpub. ///////////////////////////////////
     // We first turn each inputs into an array of bits and then concatinate 
     // them together for the hash preimage. We use SHA256.
+    component nBitsByPart = Num2BitsMultipleReverse(chunksModulus, 256); // TODO: these are 64 bit chunks and can be made smaller
+    for (var i = 0; i < chunksModulus; i++) {
+        nBitsByPart.in[i] <== n[i];
+    }
+
     component ewBitsByPart = Num2BitsMultipleReverse(lCyphertext, 256);
     for (var i = 0; i < lCyphertext; i++) {
         ewBitsByPart.in[i] <== ew[i];
@@ -53,7 +58,7 @@ template Main(chunksModulus, chunksFactor, lCyphertext) {
     component nonceBits = Num2Bits(256);
     nonceBits.in <== nonce;
 
-    component hashCheck = Sha256(512 * 2 + 256 + lCyphertext * 256);
+    component hashCheck = Sha256(chunksModulus * 256 + 512 * 2 + 256 + lCyphertext * 256);
 
     for (var i = 0; i < 512; i++) {
         hashCheck.in[i] <== QaBits.out[i];
@@ -67,6 +72,12 @@ template Main(chunksModulus, chunksFactor, lCyphertext) {
     for (var i = 0; i < lCyphertext; i++) {
         for (var j = 0; j < 256; j++) {
             hashCheck.in[i * 256 + j + 1280] <== ewBitsByPart.out[i][j];
+        }
+    }
+
+    for (var i = 0; i < chunksModulus; i++) {
+        for (var j = 0; j < 256; j++) {
+            hashCheck.in[i * 256 + j + 9984] <== nBitsByPart.out[i][j];
         }
     }
 

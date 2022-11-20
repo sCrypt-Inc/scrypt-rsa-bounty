@@ -46,7 +46,7 @@ describe("MainCircuit", function () {
 
     let nonce = BigInt(1234);
     let ew = poseidonEncrypt(pArray.concat(qArray), formatSharedKey(QsxArray), nonce);
-    
+
     let QaHex = Qa.toHex(false).slice(2);  // Slice away "04" at the beggining from uncompressed encoding.
     let QbHex = Qb.toHex(false).slice(2);
     
@@ -58,7 +58,14 @@ describe("MainCircuit", function () {
         let partStr = ew[i].toString(16);
         ewHex += "0".repeat(64 - partStr.length) + partStr;
     }
-    let Hpub = sha256(QaHex + QbHex + nonceHex + ewHex);
+
+    let nHex = '';
+    for (var i = 0; i < nArray.length; i++) {
+        let partStr = nArray[i].toString(16);
+        nHex += "0".repeat(64 - partStr.length) + partStr;
+    }
+    
+    let Hpub = sha256(QaHex + QbHex + nonceHex + ewHex + nHex);
     let Hpub0 = BigInt('0x' + Hpub.substring(0, 32));
     let Hpub1 = BigInt('0x' + Hpub.substring(32, 64));
 
